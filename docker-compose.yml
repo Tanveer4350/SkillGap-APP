@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: skillgap-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: skillgap_user
+      POSTGRES_PASSWORD: skillgap_password
+      POSTGRES_DB: skillgap_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skillgap_user -d skillgap_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: skillgap-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://skillgap_user:skillgap_password@postgres:5432/skillgap_db
+      JWT_SECRET: production-secret-key-change-in-prod-839219
+      AI_PROVIDER: local_or_gemini
+      AI_API_KEY: ${AI_API_KEY:-}
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploaded_resumes:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: skillgap-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+  uploaded_resumes:
